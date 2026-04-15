@@ -92,6 +92,12 @@ public:
   std::string PrimaryIP = "";
   uint32      PrimaryPort = 2002u;
 
+  /// Externally-reachable IP of this secondary server's streaming port.
+  /// When set, streaming tokens sent to the primary will embed this address
+  /// so clients connect directly to the secondary instead of falling back to
+  /// the primary host address.
+  std::string SecondaryHost = "";
+
   /// In synchronous mode, CARLA waits every tick until the control from the
   /// client is received.
   UPROPERTY(Category = "CARLA Server", VisibleAnywhere, meta = (EditCondition = bUseNetworking))

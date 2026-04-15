@@ -76,6 +76,11 @@ namespace multigpu {
     /// Post a job to close the session.
     void Close();
 
+    /// Returns the remote endpoint address of the secondary connection.
+    boost::asio::ip::address GetRemoteAddress() const {
+      return _socket.remote_endpoint().address();
+    }
+
   private:
 
     void StartTimer();

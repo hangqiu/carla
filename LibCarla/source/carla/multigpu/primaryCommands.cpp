@@ -49,6 +49,19 @@ token_type PrimaryCommands::SendGetToken(stream_id stream_id) {
 
   auto response = fut.get();
   token_type new_token(*reinterpret_cast<carla::streaming::detail::token_data *>(response.buffer.data()));
+
+  // If the secondary did not embed its streaming address in the token (the
+  // common case with a vanilla secondary), fill it in automatically using the
+  // IP of the secondary's control connection.  The secondary connects to the
+  // primary on port 2002; its source IP is exactly the address clients should
+  // use for the secondary's streaming port.
+  if (!new_token.has_address() && response.session) {
+    auto secondary_address = response.session->GetRemoteAddress();
+    new_token.set_address(secondary_address);
+    log_info("auto-set token address from secondary connection: ",
+             secondary_address.to_string(), ":", new_token.get_port());
+  }
+
   log_info("got a token: ", new_token.get_stream_id(), ", ", new_token.get_port());
   return new_token;
 }
