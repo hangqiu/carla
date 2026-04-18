@@ -146,10 +146,6 @@ void UCarlaSettings::LoadSettings()
     {
       PrimaryPort = Value;
     }
-    if (FParse::Value(FCommandLine::Get(), TEXT("-carla-secondary-host="), Tmp))
-    {
-      SecondaryHost = TCHAR_TO_UTF8(*Tmp);
-    }
     FString StringQualityLevel;
     if (FParse::Value(FCommandLine::Get(), TEXT("-quality-level="), StringQualityLevel))
     {

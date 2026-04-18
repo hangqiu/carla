@@ -82,9 +82,8 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
   {
     const auto StreamingPort = Settings.StreamingPort;
     const auto SecondaryPort = Settings.SecondaryPort;
-    const auto PrimaryIP       = Settings.PrimaryIP;
-    const auto PrimaryPort     = Settings.PrimaryPort;
-    const auto SecondaryHost   = Settings.SecondaryHost;
+    const auto PrimaryIP     = Settings.PrimaryIP;
+    const auto PrimaryPort   = Settings.PrimaryPort;
 
     auto BroadcastStream     = Server.Start(Settings.RPCPort, StreamingPort, SecondaryPort);
     Server.AsyncRun(FCarlaEngine_GetNumberOfThreadsForRPCServer());
@@ -151,18 +150,8 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
             auto sensor_id = *(reinterpret_cast<carla::streaming::detail::stream_id_type *>(Data.data()));
             // query dispatcher
             carla::streaming::detail::token_type token(Server.GetStreamingServer().GetToken(sensor_id));
-            // Embed the secondary's externally-reachable streaming address in
-            // the token so clients connect directly to us.  Without this, the
-            // token has no address and the client falls back to the primary's
-            // host, which is wrong in cross-machine multi-GPU deployments.
-            if (!SecondaryHost.empty()) {
-              token.set_address(carla::streaming::make_address(SecondaryHost));
-              carla::log_info("responding with a token for port ", token.get_port(),
-                              " and secondary host ", SecondaryHost);
-            } else {
-              carla::log_info("responding with a token for port ", token.get_port());
-            }
             carla::Buffer buf(reinterpret_cast<unsigned char *>(&token), (size_t) sizeof(token));
+            carla::log_info("responding with a token for port ", token.get_port());
             Secondary->Write(std::move(buf));
             break;
           }
