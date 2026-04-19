@@ -49,6 +49,20 @@ token_type PrimaryCommands::SendGetToken(stream_id sensor_id) {
 
   auto response = fut.get();
   token_type new_token(*reinterpret_cast<carla::streaming::detail::token_data *>(response.buffer.data()));
+
+  // Fill in the secondary's streaming address from the control connection.
+  // The secondary binds its streaming server to 0.0.0.0, so the token always
+  // comes back with an unspecified address.  The primary already knows the
+  // secondary's IP — it's the remote end of the TCP session on port 2002.
+  bool addr_missing = !new_token.has_address() ||
+      (new_token.has_address() && new_token.get_address().is_unspecified());
+  if (addr_missing && response.session) {
+    auto secondary_address = response.session->GetRemoteAddress();
+    new_token.set_address(secondary_address);
+    log_info("auto-set token address from secondary connection: ",
+             secondary_address.to_string(), ":", new_token.get_port());
+  }
+
   log_info("got a token: ", new_token.get_stream_id(), ", ", new_token.get_port());
   return new_token;
 }
