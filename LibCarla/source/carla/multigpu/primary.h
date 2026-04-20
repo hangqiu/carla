@@ -36,6 +36,10 @@ namespace multigpu {
 
     using socket_type = boost::asio::ip::tcp::socket;
 
+    boost::asio::ip::address GetRemoteAddress() const {
+      return _socket.remote_endpoint().address();
+    }
+
     explicit Primary(
         boost::asio::io_context &io_context,
         time_duration timeout,

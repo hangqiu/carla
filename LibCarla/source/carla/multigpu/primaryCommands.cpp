@@ -50,6 +50,15 @@ token_type PrimaryCommands::SendGetToken(stream_id sensor_id) {
   auto response = fut.get();
   token_type new_token(*reinterpret_cast<carla::streaming::detail::token_data *>(response.buffer.data()));
   log_info("got a token: ", new_token.get_stream_id(), ", ", new_token.get_port());
+
+  bool addr_missing = !new_token.has_address() ||
+      (new_token.has_address() && new_token.get_address().is_unspecified());
+  if (addr_missing && response.session) {
+    auto secondary_address = response.session->GetRemoteAddress();
+    new_token.set_address(secondary_address);
+    log_info("auto-set token address from secondary connection: ", secondary_address);
+  }
+
   return new_token;
 }
 
