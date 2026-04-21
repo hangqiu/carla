@@ -39,6 +39,15 @@ void ACollisionSensor::SetOwner(AActor *NewOwner)
   }
 }
 
+void ACollisionSensor::OnActorCollisionEvent(
+    AActor *Actor,
+    AActor *OtherActor,
+    FVector NormalImpulse,
+    const FHitResult &Hit)
+{
+  OnCollisionEvent(Actor, OtherActor, NormalImpulse, Hit);
+}
+
 void ACollisionSensor::OnCollisionEvent(
     AActor *Actor,
     AActor *OtherActor,

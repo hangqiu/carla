@@ -28,6 +28,13 @@ public:
 
   void SetOwner(AActor *NewOwner) override;
 
+  UFUNCTION(BlueprintCallable, Category="Collision")
+  void OnActorCollisionEvent(
+      AActor *Actor,
+      AActor *OtherActor,
+      FVector NormalImpulse,
+      const FHitResult &Hit);
+
 private:
 
   UFUNCTION()
