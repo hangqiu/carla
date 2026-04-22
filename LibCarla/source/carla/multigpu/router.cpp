@@ -45,8 +45,20 @@ Router::Router(uint16_t port, std::string route_ID) :
   _listener = std::make_shared<carla::multigpu::Listener>(_pool.io_context(), _endpoint);
   _route_ID = route_ID;
   _port = port;
+  _route_ID = "NONE";
+  _port = port;
 }
 
+Router::Router(uint16_t port, std::string route_ID) :
+  _next(0) {
+
+  _endpoint = boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string("0.0.0.0"), port);
+  _listener = std::make_shared<carla::multigpu::Listener>(_pool.io_context(), _endpoint);
+  _route_ID = route_ID;
+  _port = port;
+}
+
+void Router::SetCallbacks(std::string route_ID) {
 void Router::SetCallbacks(std::string route_ID) {
   // prepare server
   std::weak_ptr<Router> weak = shared_from_this();
@@ -55,11 +67,13 @@ void Router::SetCallbacks(std::string route_ID) {
     auto self = weak.lock();
     if (!self) return;
     self->ConnectSession(session, route_ID);
+    self->ConnectSession(session, route_ID);
   };
 
   carla::multigpu::Listener::callback_function_type on_close = [=](std::shared_ptr<carla::multigpu::Primary> session) {
     auto self = weak.lock();
     if (!self) return;
+    self->DisconnectSession(session, route_ID);
     self->DisconnectSession(session, route_ID);
   };
 
@@ -108,9 +122,11 @@ boost::asio::ip::tcp::endpoint Router::GetLocalEndpoint() const {
 }
 
 void Router::ConnectSession(std::shared_ptr<Primary> session, std::string route_ID) {
+void Router::ConnectSession(std::shared_ptr<Primary> session, std::string route_ID) {
   DEBUG_ASSERT(session != nullptr);
   std::lock_guard<std::mutex> lock(_mutex);
   _sessions.emplace_back(std::move(session));
+  _connected_route_ids.emplace_back(route_ID);
   _connected_route_ids.emplace_back(route_ID);
   log_info("Connected secondary servers:", _sessions.size());
   // run external callback for new connections
@@ -119,9 +135,18 @@ void Router::ConnectSession(std::shared_ptr<Primary> session, std::string route_
 }
 
 void Router::DisconnectSession(std::shared_ptr<Primary> session, std::string route_ID) {
+void Router::DisconnectSession(std::shared_ptr<Primary> session, std::string route_ID) {
   DEBUG_ASSERT(session != nullptr);
   std::lock_guard<std::mutex> lock(_mutex);
   if (_sessions.size() == 0) return;
+  auto it = std::find(_sessions.begin(), _sessions.end(), session);
+  if (it != _sessions.end()) {
+    auto idx = std::distance(_sessions.begin(), it);
+    _sessions.erase(it);
+    if (idx < static_cast<decltype(idx)>(_connected_route_ids.size())) {
+      _connected_route_ids.erase(_connected_route_ids.begin() + idx);
+    }
+  }
   auto it = std::find(_sessions.begin(), _sessions.end(), session);
   if (it != _sessions.end()) {
     auto idx = std::distance(_sessions.begin(), it);
@@ -221,6 +246,10 @@ std::weak_ptr<Primary> Router::GetNextServer() {
     _next = 0;
   }
   if (_next < _sessions.size()) {
+    auto server = std::weak_ptr<Primary>(_sessions[_next]);
+    ++_next;
+    if (_next >= _sessions.size()) _next = 0;
+    return server;
     auto server = std::weak_ptr<Primary>(_sessions[_next]);
     ++_next;
     if (_next >= _sessions.size()) _next = 0;

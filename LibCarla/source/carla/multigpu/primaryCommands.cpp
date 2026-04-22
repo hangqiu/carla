@@ -122,6 +122,7 @@ bool PrimaryCommands::SendIsEnabledForROS(stream_id sensor_id) {
 }
 
 token_type PrimaryCommands::GetToken(stream_id sensor_id, std::string Desc) {
+token_type PrimaryCommands::GetToken(stream_id sensor_id, std::string Desc) {
   // search if the sensor has been activated in any secondary server
   auto it = _tokens.find(sensor_id);
   if (it != _tokens.end()) {
@@ -130,6 +131,7 @@ token_type PrimaryCommands::GetToken(stream_id sensor_id, std::string Desc) {
     return it->second;
   }
   else {
+    // select the secondary server, routing by route_ID embedded in Desc after last '_'
     // select the secondary server, routing by route_ID embedded in Desc after last '_'
     auto server = _router->GetNextServer();
     bool routed = false;
