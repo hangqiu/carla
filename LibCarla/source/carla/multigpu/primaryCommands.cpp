@@ -41,11 +41,13 @@ void PrimaryCommands::SendLoadMap(std::string map) {
 }
 
 // send to who the router wants the request for a token
-token_type PrimaryCommands::SendGetToken(stream_id sensor_id) {
+token_type PrimaryCommands::SendGetToken(stream_id sensor_id, std::weak_ptr<Primary> server) {
   log_info("asking for a token");
   carla::Buffer buf((carla::Buffer::value_type *) &sensor_id,
                     (size_t) sizeof(stream_id));
-  auto fut = _router->WriteToNext(MultiGPUCommand::GET_TOKEN, std::move(buf));
+  auto fut = server.expired()
+      ? _router->WriteToNext(MultiGPUCommand::GET_TOKEN, std::move(buf))
+      : _router->WriteToOne(server, MultiGPUCommand::GET_TOKEN, std::move(buf));
 
   auto response = fut.get();
   token_type new_token(*reinterpret_cast<carla::streaming::detail::token_data *>(response.buffer.data()));
@@ -119,7 +121,7 @@ bool PrimaryCommands::SendIsEnabledForROS(stream_id sensor_id) {
   }
 }
 
-token_type PrimaryCommands::GetToken(stream_id sensor_id) {
+token_type PrimaryCommands::GetToken(stream_id sensor_id, std::string Desc) {
   // search if the sensor has been activated in any secondary server
   auto it = _tokens.find(sensor_id);
   if (it != _tokens.end()) {
@@ -128,9 +130,29 @@ token_type PrimaryCommands::GetToken(stream_id sensor_id) {
     return it->second;
   }
   else {
-    // enable the sensor on one secondary server
+    // select the secondary server, routing by route_ID embedded in Desc after last '_'
     auto server = _router->GetNextServer();
-    auto token = SendGetToken(sensor_id);
+    bool routed = false;
+
+    if (Desc != "NONE") {
+      std::string route_ID = Desc.substr(Desc.find_last_of("_") + 1);
+      size_t attempts = 0;
+      while (route_ID != _router->GetRouteIDFromSession()) {
+        if (_router->GetRouteIDFromSession() == "NONE") {
+          break; // fallback: use a non-dedicated secondary
+        }
+        server = _router->GetNextServer();
+        if (++attempts > 64) break; // safety limit
+      }
+      if (route_ID == _router->GetRouteIDFromSession()) {
+        routed = true;
+      }
+    }
+
+    // When a specific server was matched by route ID, send directly to it via
+    // WriteToOne so the _next cursor (advanced by the route matching loop) does
+    // not cause GET_TOKEN to land on the wrong secondary.
+    auto token = SendGetToken(sensor_id, routed ? server : std::weak_ptr<Primary>{});
     // add to the maps
     _tokens[sensor_id] = token;
     _servers[sensor_id] = server;

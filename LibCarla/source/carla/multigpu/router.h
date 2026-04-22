@@ -37,6 +37,7 @@ namespace multigpu {
 
     Router(void);
     explicit Router(uint16_t port);
+    explicit Router(uint16_t port, std::string route_ID);
     ~Router();
 
     void Write(MultiGPUCommand id, Buffer &&buffer);
@@ -44,7 +45,7 @@ namespace multigpu {
     std::future<SessionInfo> WriteToOne(std::weak_ptr<Primary> server, MultiGPUCommand id, Buffer &&buffer);
     void Stop();
 
-    void SetCallbacks();
+    void SetCallbacks(std::string route_ID = "NONE");
     void SetNewConnectionCallback(std::function<void(void)>);
 
     void AsyncRun(size_t worker_threads);
@@ -61,10 +62,18 @@ namespace multigpu {
 
     std::weak_ptr<Primary> GetNextServer();
 
+    std::string GetRouteID() const {
+      return _route_ID;
+    }
+
+    std::string GetRouteIDFromSession();
+
   private:
-    void ConnectSession(std::shared_ptr<Primary> session);
-    void DisconnectSession(std::shared_ptr<Primary> session);
+    void ConnectSession(std::shared_ptr<Primary> session, std::string route_ID);
+    void DisconnectSession(std::shared_ptr<Primary> session, std::string route_ID);
     void ClearSessions();
+    // Called with _mutex already held.
+    void UpdateSessionRouteID(std::shared_ptr<Primary> session, std::string route_id);
 
     // mutex and thread pool must be at the beginning to be destroyed last
     std::mutex                              _mutex;
@@ -76,6 +85,10 @@ namespace multigpu {
     std::unordered_map<Primary *, std::shared_ptr<std::promise<SessionInfo>>> _promises;
     PrimaryCommands                         _commander;
     std::function<void(void)>               _callback;
+
+    uint16_t                                _port;
+    std::string                             _route_ID;
+    std::vector<std::string>                _connected_route_ids;
   };
 
 } // namespace multigpu

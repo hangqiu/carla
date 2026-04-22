@@ -254,3 +254,29 @@ FString FActorRegistry::GetDescriptionFromStream(carla::streaming::detail::strea
   }
   return FString("");
 }
+
+std::string FActorRegistry::GetRoleNameFromStream(carla::streaming::detail::stream_id_type Id)
+{
+  for (auto &Item : ActorDatabase)
+  {
+    ASensor *Sensor = Cast<ASensor>(Item.Value->GetActor());
+    if (Sensor == nullptr) continue;
+
+    carla::streaming::detail::token_type token(Sensor->GetToken());
+    if (token.get_stream_id() == Id)
+    {
+      const FActorInfo *Info = Item.Value->GetActorInfo();
+      if (Info == nullptr) return "";
+
+      for (const auto &Attr : Info->Description.Variations)
+      {
+        if (Attr.Key == "role_name")
+        {
+          return std::string(TCHAR_TO_UTF8(*Attr.Value.Value));
+        }
+      }
+      return "";
+    }
+  }
+  return "";
+}

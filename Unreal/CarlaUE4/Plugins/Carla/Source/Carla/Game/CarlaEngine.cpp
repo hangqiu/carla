@@ -198,7 +198,9 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
         }
       };
 
-      Secondary = std::make_shared<carla::multigpu::Secondary>(PrimaryIP, PrimaryPort, CommandExecutor);
+      const char *RouteIdEnv = std::getenv("SECONDARY_ROUTE_ID");
+      std::string SecondaryRouteID = RouteIdEnv ? std::string(RouteIdEnv) : "";
+      Secondary = std::make_shared<carla::multigpu::Secondary>(PrimaryIP, PrimaryPort, CommandExecutor, SecondaryRouteID);
       Secondary->Connect();
       // set this server in synchronous mode
       bSynchronousMode = true;

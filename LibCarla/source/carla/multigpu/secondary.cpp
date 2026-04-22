@@ -4,6 +4,7 @@
 // This work is licensed under the terms of the MIT license.
 // For a copy, see <https://opensource.org/licenses/MIT>.
 
+#include "carla/multigpu/commands.h"
 #include "carla/multigpu/incomingMessage.h"
 #include "carla/multigpu/secondary.h"
 
@@ -19,14 +20,18 @@
 #include <boost/asio/post.hpp>
 #include <boost/asio/bind_executor.hpp>
 
+#include <cstring>
 #include <exception>
+#include <vector>
 
 namespace carla {
 namespace multigpu {
 
   Secondary::Secondary(
     boost::asio::ip::tcp::endpoint ep,
-    SecondaryCommands::callback_type callback) :
+    SecondaryCommands::callback_type callback,
+    std::string route_id) :
+      _route_ID(route_id),
       _pool(),
       _socket(_pool.io_context()),
       _endpoint(ep),
@@ -41,7 +46,9 @@ namespace multigpu {
   Secondary::Secondary(
     std::string ip,
     uint16_t port,
-    SecondaryCommands::callback_type callback) :
+    SecondaryCommands::callback_type callback,
+    std::string route_id) :
+      _route_ID(route_id),
       _pool(),
       _socket(_pool.io_context()),
       _strand(_pool.io_context()),
@@ -94,6 +101,19 @@ namespace multigpu {
         self->_socket.set_option(boost::asio::ip::tcp::no_delay(true));
 
         log_info("secondary server: connected to ", self->_endpoint);
+
+        // Announce our route ID to the primary so it can route sensors to us.
+        if (!self->_route_ID.empty()) {
+          CommandHeader hdr;
+          hdr.id = MultiGPUCommand::REGISTER_ROUTE_ID;
+          hdr.size = static_cast<uint32_t>(self->_route_ID.size());
+          std::vector<uint8_t> msg(sizeof(CommandHeader) + self->_route_ID.size());
+          std::memcpy(msg.data(), &hdr, sizeof(CommandHeader));
+          std::memcpy(msg.data() + sizeof(CommandHeader), self->_route_ID.data(), self->_route_ID.size());
+          carla::Buffer buf(msg.data(), msg.size());
+          self->Write(std::move(buf));
+          log_info("secondary server: registered route ID '", self->_route_ID, "'");
+        }
 
         self->ReadData();
       };
