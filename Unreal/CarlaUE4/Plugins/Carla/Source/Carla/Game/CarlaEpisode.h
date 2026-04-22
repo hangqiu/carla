@@ -192,6 +192,11 @@ public:
     return ActorDispatcher->GetActorRegistry().GetDescriptionFromStream(StreamId);
   }
 
+  std::string GetRoleNameFromStream(carla::streaming::detail::stream_id_type StreamId)
+  {
+    return ActorDispatcher->GetActorRegistry().GetRoleNameFromStream(StreamId);
+  }
+
   // ===========================================================================
   // -- Actor handling methods -------------------------------------------------
   // ===========================================================================

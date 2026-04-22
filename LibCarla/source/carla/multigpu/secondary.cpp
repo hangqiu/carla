@@ -26,7 +26,9 @@ namespace multigpu {
 
   Secondary::Secondary(
     boost::asio::ip::tcp::endpoint ep,
-    SecondaryCommands::callback_type callback) :
+    SecondaryCommands::callback_type callback,
+    std::string route_id) :
+      _route_ID(route_id),
       _pool(),
       _socket(_pool.io_context()),
       _endpoint(ep),
@@ -41,7 +43,9 @@ namespace multigpu {
   Secondary::Secondary(
     std::string ip,
     uint16_t port,
-    SecondaryCommands::callback_type callback) :
+    SecondaryCommands::callback_type callback,
+    std::string route_id) :
+      _route_ID(route_id),
       _pool(),
       _socket(_pool.io_context()),
       _strand(_pool.io_context()),

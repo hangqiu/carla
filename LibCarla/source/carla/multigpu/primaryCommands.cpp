@@ -119,7 +119,7 @@ bool PrimaryCommands::SendIsEnabledForROS(stream_id sensor_id) {
   }
 }
 
-token_type PrimaryCommands::GetToken(stream_id sensor_id) {
+token_type PrimaryCommands::GetToken(stream_id sensor_id, std::string Desc) {
   // search if the sensor has been activated in any secondary server
   auto it = _tokens.find(sensor_id);
   if (it != _tokens.end()) {
@@ -128,8 +128,22 @@ token_type PrimaryCommands::GetToken(stream_id sensor_id) {
     return it->second;
   }
   else {
-    // enable the sensor on one secondary server
+    // select the secondary server, routing by route_ID embedded in Desc after last '_'
     auto server = _router->GetNextServer();
+
+    if (Desc != "NONE") {
+      std::string route_ID = Desc.substr(Desc.find_last_of("_") + 1);
+      size_t attempts = 0;
+      size_t num_sessions = _router->HasClientsConnected() ? 1 : 0; // conservative guard
+      while (route_ID != _router->GetRouteIDFromSession()) {
+        if (_router->GetRouteIDFromSession() == "NONE") {
+          break; // fallback: use a non-dedicated secondary
+        }
+        server = _router->GetNextServer();
+        if (++attempts > 64) break; // safety limit
+      }
+    }
+
     auto token = SendGetToken(sensor_id);
     // add to the maps
     _tokens[sensor_id] = token;

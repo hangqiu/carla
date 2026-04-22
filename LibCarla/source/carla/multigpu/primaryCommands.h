@@ -41,7 +41,7 @@ class PrimaryCommands {
     // send to know if a connection is alive
     void SendIsAlive();
 
-    token_type GetToken(stream_id sensor_id);
+    token_type GetToken(stream_id sensor_id, std::string Desc = "NONE");
 
     void EnableForROS(stream_id sensor_id);
 

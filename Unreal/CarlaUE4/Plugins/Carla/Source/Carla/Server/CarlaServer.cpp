@@ -825,9 +825,10 @@ void FCarlaServer::FPimpl::BindActions()
 
     if (SecondaryServer->HasClientsConnected() && !ForceInPrimary)
     {
-      // multi-gpu
-      UE_LOG(LogCarla, Log, TEXT("Sensor %d '%s' created in secondary server"), sensor_id, *Desc);
-      return SecondaryServer->GetCommander().GetToken(sensor_id);
+      // multi-gpu: route sensor to the secondary colocated with the client
+      std::string RoleName = Episode->GetRoleNameFromStream(sensor_id);
+      UE_LOG(LogCarla, Log, TEXT("Sensor %d '%s' role '%s' created in secondary server"), sensor_id, *Desc, *FString(RoleName.c_str()));
+      return SecondaryServer->GetCommander().GetToken(sensor_id, RoleName);
     }
     else
     {
