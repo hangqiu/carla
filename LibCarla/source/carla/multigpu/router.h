@@ -85,10 +85,11 @@ namespace multigpu {
     std::unordered_map<Primary *, std::shared_ptr<std::promise<SessionInfo>>> _promises;
     PrimaryCommands                         _commander;
     std::function<void(void)>               _callback;
+    uint16_t                               _port;
+    std::string                            _route_ID;
 
-    uint16_t                                _port;
-    std::string                             _route_ID;
-    std::vector<std::string>                _connected_route_ids;
+    std::vector<std::string>                 _connected_route_ids;
+
   };
 
 } // namespace multigpu

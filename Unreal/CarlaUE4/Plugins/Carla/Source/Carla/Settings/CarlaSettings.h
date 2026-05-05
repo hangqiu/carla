@@ -78,6 +78,8 @@ private:
 
 public:
 
+  std::string RouteID = "";
+  
   /// World port to listen for client connections.
   UPROPERTY(Category = "CARLA Server", VisibleAnywhere, meta = (EditCondition = bUseNetworking))
   uint32 RPCPort = 2000u;

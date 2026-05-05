@@ -888,7 +888,7 @@ void UOpenDriveToMap::MoveActorsToSubLevels(TArray<AActor*> ActorsToMove)
     ALargeMapManager* LmManager = Cast<ALargeMapManager>(QueryActor);
     if( LmManager ){
       UEditorLevelLibrary::SaveCurrentLevel();
-      UHoudiniImporterWidget::MoveActorsToSubLevelWithLargeMap(ActorsToMove, LmManager);
+      // UHoudiniImporterWidget::MoveActorsToSubLevelWithLargeMap(ActorsToMove, LmManager);
     }
   }
 }

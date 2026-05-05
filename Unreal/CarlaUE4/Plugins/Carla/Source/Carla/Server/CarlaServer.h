@@ -26,7 +26,7 @@ public:
 
   ~FCarlaServer();
 
-  FDataMultiStream Start(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort);
+  FDataMultiStream Start(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort, std::string RouteID);
 
   void NotifyBeginEpisode(UCarlaEpisode &Episode);
 

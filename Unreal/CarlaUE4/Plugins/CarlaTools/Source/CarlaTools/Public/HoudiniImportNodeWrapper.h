@@ -9,7 +9,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintAsyncActionBase.h"
 
-#include "HoudiniPublicAPIProcessHDANode.h"
+// #include "HoudiniPublicAPIProcessHDANode.h"
 
 #include "HoudiniImportNodeWrapper.generated.h"
 
@@ -49,13 +49,11 @@ protected:
 
   UFUNCTION()
   void HandleCompleted(
-      UHoudiniPublicAPIAssetWrapper* AssetWrapper, 
       bool bCookSuccess, 
       bool bBakeSuccess);
 
   UFUNCTION()
   void HandleFailed(
-      UHoudiniPublicAPIAssetWrapper* AssetWrapper,
       bool bCookSuccess,
       bool bBakeSuccess);
 

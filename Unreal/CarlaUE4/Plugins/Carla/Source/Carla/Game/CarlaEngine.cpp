@@ -84,7 +84,9 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
     const auto PrimaryIP     = Settings.PrimaryIP;
     const auto PrimaryPort   = Settings.PrimaryPort;
 
-    auto BroadcastStream     = Server.Start(Settings.RPCPort, StreamingPort, SecondaryPort);
+    const auto RouteID = Settings.RouteID;
+
+    auto BroadcastStream     = Server.Start(Settings.RPCPort, StreamingPort, SecondaryPort, RouteID);
     Server.AsyncRun(FCarlaEngine_GetNumberOfThreadsForRPCServer());
 
     WorldObserver.SetStream(BroadcastStream);
@@ -122,6 +124,7 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
               // convert frame data from buffer to istream
               CarlaStreamBuffer TempStream((char *) Data.data(), Data.size());
               std::istream InStream(&TempStream);
+              carla::log_error("GET FRAME DATA");
               GetCurrentEpisode()->GetFrameData().Read(InStream);
               {
                 TRACE_CPUPROFILER_EVENT_SCOPE_STR("FramesToProcess.emplace_back");
@@ -130,6 +133,7 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
               }
             }
             // forces a tick
+            carla::log_error("Forcing a tick from SEND_FRAME command");
             Server.Tick();
             break;
           }
@@ -147,6 +151,7 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
             carla::streaming::detail::token_type token(Server.GetStreamingServer().GetToken(sensor_id));
             carla::Buffer buf(reinterpret_cast<unsigned char *>(&token), (size_t) sizeof(token));
             carla::log_info("responding with a token for port ", token.get_port());
+            carla::log_error("responding with a token for port ", token.get_port());
             Secondary->Write(std::move(buf));
             break;
           }

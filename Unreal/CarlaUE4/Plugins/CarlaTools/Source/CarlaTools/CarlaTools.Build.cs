@@ -6,7 +6,10 @@ using UnrealBuildTool;
 
 public class CarlaTools : ModuleRules
 {
-  bool UsingHoudini = true;
+  // bool UsingHoudini = true;
+
+  bool UsingHoudini = false;
+  
   bool bUsingOmniverseConnector = false;
   private bool IsWindows(ReadOnlyTargetRules Target)
   {

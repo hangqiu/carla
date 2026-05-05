@@ -257,26 +257,32 @@ FString FActorRegistry::GetDescriptionFromStream(carla::streaming::detail::strea
 
 std::string FActorRegistry::GetRoleNameFromStream(carla::streaming::detail::stream_id_type Id)
 {
-  for (auto &Item : ActorDatabase)
-  {
-    ASensor *Sensor = Cast<ASensor>(Item.Value->GetActor());
-    if (Sensor == nullptr) continue;
-
-    carla::streaming::detail::token_type token(Sensor->GetToken());
-    if (token.get_stream_id() == Id)
+    // Loop over all registered actors
+    for (auto &Item : ActorDatabase)
     {
-      const FActorInfo *Info = Item.Value->GetActorInfo();
-      if (Info == nullptr) return "";
+        // Only interested in sensors
+        ASensor *Sensor = Cast<ASensor>(Item.Value->GetActor());
+        if (Sensor == nullptr) continue;
 
-      for (const auto &Attr : Info->Description.Variations)
-      {
-        if (Attr.Key == "role_name")
+        // Extract the token from the sensor and compare StreamId
+        carla::streaming::detail::token_type token(Sensor->GetToken());
+        if (token.get_stream_id() == Id)
         {
-          return std::string(TCHAR_TO_UTF8(*Attr.Value.Value));
+            // Access actor info
+            const FActorInfo *Info = Item.Value->GetActorInfo();
+            if (Info == nullptr) return "";
+
+            // Look for "role_name" in the actor description attributes
+            const auto &Attrs = Info->Description.Variations;
+            for (const auto &Attr : Info->Description.Variations)
+            {
+              if (Attr.Key == "role_name") {
+                std::string value = std::string(TCHAR_TO_UTF8(*Attr.Value.Value));
+                return value;
+              }
+            }
+          return "";
         }
-      }
-      return "";
     }
-  }
-  return "";
+    return "";
 }

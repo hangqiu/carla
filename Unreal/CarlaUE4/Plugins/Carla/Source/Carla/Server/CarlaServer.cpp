@@ -95,14 +95,14 @@ class FCarlaServer::FPimpl
 {
 public:
 
-  FPimpl(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort)
+  FPimpl(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort, std::string RouteID)
     : Server(RPCPort),
       StreamingServer(StreamingPort),
       BroadcastStream(StreamingServer.MakeStream())
   {
     // we need to create shared_ptr from the router for some handlers to live
-    SecondaryServer = std::make_shared<carla::multigpu::Router>(SecondaryPort);
-    SecondaryServer->SetCallbacks();
+    SecondaryServer = std::make_shared<carla::multigpu::Router>(SecondaryPort, RouteID);
+    SecondaryServer->SetCallbacks(RouteID);
     BindActions();
   }
 
@@ -818,6 +818,7 @@ void FCarlaServer::FPimpl::BindActions()
 
     // collision sensor always in primary server in multi-gpu
     FString Desc = Episode->GetActorDescriptionFromStream(sensor_id);
+    std::string RoleName = Episode->GetRoleNameFromStream(sensor_id);
     if (Desc == "" || Desc == "sensor.other.collision")
     {
       ForceInPrimary = true;
@@ -2621,9 +2622,9 @@ FCarlaServer::~FCarlaServer() {
   Stop();
 }
 
-FDataMultiStream FCarlaServer::Start(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort)
+FDataMultiStream FCarlaServer::Start(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort, std::string RouteID)
 {
-  Pimpl = MakeUnique<FPimpl>(RPCPort, StreamingPort, SecondaryPort);
+  Pimpl = MakeUnique<FPimpl>(RPCPort, StreamingPort, SecondaryPort, RouteID);
   StreamingPort = Pimpl->StreamingServer.GetLocalEndpoint().port();
   SecondaryPort = Pimpl->SecondaryServer->GetLocalEndpoint().port();
 

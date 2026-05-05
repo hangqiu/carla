@@ -29,6 +29,8 @@
 #include <carla/streaming/Server.h>
 #include <compiler/enable-ue4-macros.h>
 
+#include <string>
+
 #include "CarlaEpisode.generated.h"
 
 /// A simulation episode.

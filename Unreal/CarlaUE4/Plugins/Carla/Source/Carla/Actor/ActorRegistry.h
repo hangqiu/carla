@@ -15,6 +15,7 @@
 #include <compiler/enable-ue4-macros.h>
 
 #include <unordered_map>
+#include <string>
 
 /// A registry of all the Carla actors.
 class FActorRegistry
