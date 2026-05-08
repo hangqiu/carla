@@ -80,6 +80,8 @@ protected:
 
   void SetUpSceneCaptureComponent(USceneCaptureComponent2D &SceneCapture) override;
 
+  FString RoleName;
+
 private:
 
   UPROPERTY()

@@ -49,6 +49,18 @@ void AShaderBasedSensor::Set(const FActorDescription &Description)
 {
   Super::Set(Description);
   UActorBlueprintFunctionLibrary::SetCamera(Description, this);
+
+  const FActorAttribute* Attr =
+      Description.Variations.Find("role_name");
+
+  if (Attr)
+  {
+    RoleName = Attr->Value;
+  }
+  else
+  {
+    RoleName = "unknown";
+  }
 }
 
 void AShaderBasedSensor::SetFloatShaderParameter(
