@@ -69,14 +69,11 @@ void ASceneCaptureCamera::PostPhysTick(UWorld *World, ELevelTick TickType, float
 
   auto frame = FCarlaEngine::GetFrameCounter();
   
-  uint32 sensor_id = GetUniqueID();
-
   FString Role = RoleName;
   
   std::string result =
     "Sensor_" + std::to_string(now) +
     "_frame=" + std::to_string(frame) +
-    "_id=" + std::to_string(sensor_id) +
     "_rolename=" +  TCHAR_TO_UTF8(*RoleName);
 
   carla::log_error(result);
