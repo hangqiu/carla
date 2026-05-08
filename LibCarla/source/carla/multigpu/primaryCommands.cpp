@@ -14,6 +14,8 @@
 #include "carla/streaming/detail/Token.h"
 #include "carla/streaming/detail/Types.h"
 
+#include <chrono>
+
 namespace carla {
 namespace multigpu {
 
@@ -25,23 +27,47 @@ PrimaryCommands::PrimaryCommands(std::shared_ptr<Router> router) :
 }
 
 void PrimaryCommands::set_router(std::shared_ptr<Router> router) {
+  double now = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  std::string event = "SetRouter";
+  std::string result = "Primary_" + std::to_string(now) + "_" + event;
+  log_error(result);
   _router = router;
 }
 
 // broadcast to all secondary servers the frame data
 void PrimaryCommands::SendFrameData(carla::Buffer buffer) {
+  double now = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  std::string event = "SendFrameData";
+  std::string result = "Primary_" + std::to_string(now) + "_" + event;
+  log_error(result);
   _router->Write(MultiGPUCommand::SEND_FRAME, std::move(buffer));
   // log_info("sending frame command");
 }
 
 // broadcast to all secondary servers the map to load
 void PrimaryCommands::SendLoadMap(std::string map) {
+  double now = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  std::string event = "SendLoadMap";
+  std::string result = "Primary_" + std::to_string(now) + "_" + event;
+  log_error(result);
   carla::Buffer buf((unsigned char *) map.c_str(), (size_t) map.size() + 1);
   _router->Write(MultiGPUCommand::LOAD_MAP, std::move(buf));
 }
 
 // send to who the router wants the request for a token
 token_type PrimaryCommands::SendGetToken(stream_id sensor_id, std::weak_ptr<Primary> server) {
+  double now = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  std::string event = "SendGetToken";
+  std::string result = "Primary_" + std::to_string(now) + "_" + event;
+  log_error(result);
   log_info("asking for a token");
   carla::Buffer buf((carla::Buffer::value_type *) &sensor_id,
                     (size_t) sizeof(stream_id));
@@ -122,6 +148,12 @@ bool PrimaryCommands::SendIsEnabledForROS(stream_id sensor_id) {
 }
 
 token_type PrimaryCommands::GetToken(stream_id sensor_id, std::string Desc) {
+  double now = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  std::string event = "GetToken";
+  std::string result = "Primary_" + std::to_string(now) + "_" + event;
+  log_error(result);
   // search if the sensor has been activated in any secondary server
   auto it = _tokens.find(sensor_id);
   if (it != _tokens.end()) {
@@ -152,6 +184,12 @@ token_type PrimaryCommands::GetToken(stream_id sensor_id, std::string Desc) {
     // When a specific server was matched by route ID, send directly to it via
     // WriteToOne so the _next cursor (advanced by the route matching loop) does
     // not cause GET_TOKEN to land on the wrong secondary.
+    double now = std::chrono::duration<double>(
+                  std::chrono::system_clock::now().time_since_epoch()
+                ).count();
+    std::string event = "SendGetToken";
+    std::string result = "Primary_" + std::to_string(now) + "_" + event;
+    log_error(result);
     auto token = SendGetToken(sensor_id, routed ? server : std::weak_ptr<Primary>{});
     // add to the maps
     _tokens[sensor_id] = token;

@@ -12,6 +12,8 @@
 
 #include <cstring>
 
+#include <chrono>
+
 namespace carla {
 namespace multigpu {
 
@@ -48,6 +50,13 @@ Router::Router(uint16_t port, std::string route_ID) :
 }
 
 void Router::SetCallbacks(std::string route_ID) {
+  double now = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  std::string event = "SetCallbacks";
+  std::string result = "CHANGE_Router_" + std::to_string(now) + "_" + event;
+  log_error(result);
+
   // prepare server
   std::weak_ptr<Router> weak = shared_from_this();
 
@@ -108,11 +117,27 @@ boost::asio::ip::tcp::endpoint Router::GetLocalEndpoint() const {
 }
 
 void Router::ConnectSession(std::shared_ptr<Primary> session, std::string route_ID) {
+  double now = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  std::string event = "ConnectSession";
+  std::string result = "CHANGE_Router_" + std::to_string(now) + "_" + event + "_" + route_ID;
+  log_error(result);
+
   DEBUG_ASSERT(session != nullptr);
   std::lock_guard<std::mutex> lock(_mutex);
   _sessions.emplace_back(std::move(session));
-  _connected_route_ids.emplace_back(route_ID);
+  if(route_ID == "") {
+    log_error("route ID is empty string");
+    _connected_route_ids.emplace_back(route_ID);
+  }
+  else {
+    log_error("Added route ID: ", route_ID);
+    _connected_route_ids.emplace_back(route_ID);
+  }
   log_info("Connected secondary servers:", _sessions.size());
+  log_error("Connected secondary servers:", _sessions.size());
+  log_error("Added route ID: ", route_ID);
   // run external callback for new connections
   if (_callback)
     _callback();
@@ -131,6 +156,7 @@ void Router::DisconnectSession(std::shared_ptr<Primary> session, std::string rou
     }
   }
   log_info("Connected secondary servers:", _sessions.size());
+  log_error("Connected secondary servers:", _sessions.size());
 }
 
 void Router::ClearSessions() {
@@ -176,6 +202,7 @@ std::future<SessionInfo> Router::WriteToNext(MultiGPUCommand id, Buffer &&buffer
   // write to the next server only
   std::lock_guard<std::mutex> lock(_mutex);
   if (_next >= _sessions.size()) {
+    std::cout << "Resetting next to 0" << std::endl;
     _next = 0;
   }
   if (_next < _sessions.size()) {
@@ -183,10 +210,17 @@ std::future<SessionInfo> Router::WriteToNext(MultiGPUCommand id, Buffer &&buffer
     if (s != nullptr) {
       _promises[s.get()] = response;
       std::cout << "Updated promise into map: " << _promises.size() << std::endl;
+      std::cout << "Writing message to session " << _next << std::endl;
       s->Write(message);
     }
   }
+  std::cout << "incrementing next from " << _next << std::endl;
   ++_next;
+  if (_next >= _sessions.size()) {
+    std::cout << "Resetting next to 0" << std::endl;
+    _next = 0;
+  }
+    log_error("router write to next done");
   return response->get_future();
 }
 
@@ -218,6 +252,7 @@ std::weak_ptr<Primary> Router::GetNextServer() {
   std::lock_guard<std::mutex> lock(_mutex);
   if (_next >= _sessions.size()) {
     _next = 0;
+    std::cout << "Resetting next to 0" << std::endl;
   }
   if (_next < _sessions.size()) {
     auto server = std::weak_ptr<Primary>(_sessions[_next]);
@@ -225,6 +260,7 @@ std::weak_ptr<Primary> Router::GetNextServer() {
     if (_next >= _sessions.size()) _next = 0;
     return server;
   } else {
+    std::cout << "No sessions available" << std::endl;
     return std::weak_ptr<Primary>();
   }
 }
@@ -238,6 +274,13 @@ std::string Router::GetRouteIDFromSession() {
 }
 
 void Router::UpdateSessionRouteID(std::shared_ptr<Primary> session, std::string route_id) {
+  double now = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  std::string event = "update_session_route_id";
+  std::string result = "Router_" + std::to_string(now) + "_" + event;
+  log_error(result);
+
   auto it = std::find(_sessions.begin(), _sessions.end(), session);
   if (it != _sessions.end()) {
     size_t idx = static_cast<size_t>(std::distance(_sessions.begin(), it));
