@@ -21,6 +21,8 @@
 #include "Engine/CollisionProfile.h"
 #include "Runtime/Engine/Classes/Kismet/KismetMathLibrary.h"
 
+#include <chrono>
+
 FActorDefinition ARayCastLidar::GetSensorDefinition()
 {
   return UActorBlueprintFunctionLibrary::MakeLidarDefinition(TEXT("ray_cast"));
@@ -37,6 +39,16 @@ ARayCastLidar::ARayCastLidar(const FObjectInitializer& ObjectInitializer)
 void ARayCastLidar::Set(const FActorDescription &ActorDescription)
 {
   ASensor::Set(ActorDescription);
+
+  if (ActorDescription.Variations.Contains("role_name"))
+  {
+    RoleName = ActorDescription.Variations["role_name"].Value;
+  }
+  else
+  {
+    RoleName = "unknown";
+  }
+
   FLidarDescription LidarDescription;
   UActorBlueprintFunctionLibrary::SetLidar(ActorDescription, LidarDescription);
   Set(LidarDescription);
@@ -62,6 +74,22 @@ void ARayCastLidar::PostPhysTick(UWorld *World, ELevelTick TickType, float Delta
 
   auto DataStream = GetDataStream(*this);
   auto SensorTransform = DataStream.GetSensorTransform();
+  
+  double now = std::chrono::duration<double>(
+        std::chrono::system_clock::now().time_since_epoch()
+    ).count();
+
+  auto frame = FCarlaEngine::GetFrameCounter();
+  
+  std::string role_utf8 = TCHAR_TO_UTF8(*RoleName);
+
+  std::string result =
+      std::string("Sensor_") +
+      std::to_string(now) +
+      "_frame=" + std::to_string(frame) +
+      "_rolename=" + role_utf8;
+
+  carla::log_error(result);
 
   {
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("Send Stream");

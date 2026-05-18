@@ -59,4 +59,6 @@ private:
   /// beta = (1 - dropoff_zero_intensity)
   float DropOffAlpha;
   float DropOffBeta;
+
+  FString RoleName;
 };
