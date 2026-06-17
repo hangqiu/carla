@@ -8,7 +8,7 @@
 #include "Carla/Sensor/SceneCaptureCamera.h"
 #include "Carla/Game/CarlaEngine.h"
 #include <chrono>
-
+#include "TimestampLogger.h"
 #include "Actor/ActorBlueprintFunctionLibrary.h"
 
 #include "Runtime/RenderCore/Public/RenderingThread.h"
@@ -71,12 +71,23 @@ void ASceneCaptureCamera::PostPhysTick(UWorld *World, ELevelTick TickType, float
   
   FString Role = RoleName;
   
+  
   std::string result =
     "Sensor_" + std::to_string(now) +
     "_frame=" + std::to_string(frame) +
     "_rolename=" +  TCHAR_TO_UTF8(*RoleName);
 
+  TimestampLogger::GetInstance().Log(
+    std::string(TCHAR_TO_UTF8(*RoleName)),
+    now,
+    frame
+    );
+    
   carla::log_error(result);
+
+  std::cout << result << std::endl;
+  std::cout.flush();
+  std::cerr << result << std::endl;
 
   FPixelReader::SendPixelsInRenderThread<ASceneCaptureCamera, FColor>(*this);
 }

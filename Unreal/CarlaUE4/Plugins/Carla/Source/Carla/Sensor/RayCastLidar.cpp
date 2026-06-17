@@ -22,6 +22,7 @@
 #include "Runtime/Engine/Classes/Kismet/KismetMathLibrary.h"
 
 #include <chrono>
+#include "TimestampLogger.h"
 
 FActorDefinition ARayCastLidar::GetSensorDefinition()
 {
@@ -89,7 +90,16 @@ void ARayCastLidar::PostPhysTick(UWorld *World, ELevelTick TickType, float Delta
       "_frame=" + std::to_string(frame) +
       "_rolename=" + role_utf8;
 
+  TimestampLogger::GetInstance().Log(
+    std::string(TCHAR_TO_UTF8(*RoleName)),
+    now,
+    frame
+    );
+
   carla::log_error(result);
+  std::cout << result << std::endl;
+  std::cout.flush();
+  std::cerr << result << std::endl;
 
   {
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("Send Stream");
