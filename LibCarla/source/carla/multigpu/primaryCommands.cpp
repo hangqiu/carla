@@ -15,9 +15,49 @@
 #include "carla/streaming/detail/Types.h"
 
 #include <chrono>
+#include <cstdlib>
+#include <fstream>
+#include <unistd.h>   // gethostname
 
 namespace carla {
 namespace multigpu {
+
+namespace {
+
+  // Appends a row to the same CSV that Carla/Sensor/TimestampLogger.h writes
+  // for per-frame sensor timestamps, so router/token-fetch events land in the
+  // same file without this LibCarla-core translation unit (also compiled into
+  // the client library) depending on that UE4-plugin-only header.
+  void LogRoutingTimestamp(const std::string &event, double timestamp, int frame) {
+    std::string log_path = "/tmp/carla_timestamps.csv";
+    const char *env_path = std::getenv("CARLA_TIMESTAMP_LOG_PATH");
+    if (env_path != nullptr) {
+      log_path = std::string(env_path);
+    }
+
+    std::string dir = log_path.substr(0, log_path.find_last_of('/'));
+    if (!dir.empty()) {
+      std::string cmd = "mkdir -p " + dir;
+      system(cmd.c_str());
+    }
+
+    std::ofstream file(log_path, std::ios::app);
+    if (!file.is_open()) {
+      return;
+    }
+
+    char hostname[256] = "unknown";
+    gethostname(hostname, sizeof(hostname));
+
+    file << frame << ","
+         << std::fixed << timestamp << ","
+         << event << ","
+         << "server,"
+         << hostname
+         << "\n";
+  }
+
+} // namespace
 
 PrimaryCommands::PrimaryCommands() {
 }
@@ -71,11 +111,25 @@ token_type PrimaryCommands::SendGetToken(stream_id sensor_id, std::weak_ptr<Prim
   log_info("asking for a token");
   carla::Buffer buf((carla::Buffer::value_type *) &sensor_id,
                     (size_t) sizeof(stream_id));
+  LogRoutingTimestamp(
+    "SendGetTokenRoundTrip_start_sensor" + std::to_string(sensor_id),
+    now,
+    static_cast<int>(sensor_id));
+
   auto fut = server.expired()
       ? _router->WriteToNext(MultiGPUCommand::GET_TOKEN, std::move(buf))
       : _router->WriteToOne(server, MultiGPUCommand::GET_TOKEN, std::move(buf));
 
   auto response = fut.get();
+
+  double round_trip_end = std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()
+              ).count();
+  LogRoutingTimestamp(
+    "SendGetTokenRoundTrip_end_sensor" + std::to_string(sensor_id),
+    round_trip_end,
+    static_cast<int>(sensor_id));
+
   token_type new_token(*reinterpret_cast<carla::streaming::detail::token_data *>(response.buffer.data()));
   log_info("got a token: ", new_token.get_stream_id(), ", ", new_token.get_port());
 
@@ -162,26 +216,42 @@ token_type PrimaryCommands::GetToken(stream_id sensor_id, std::string Desc) {
     return it->second;
   }
   else {
-    // select the secondary server, routing by route_ID embedded in Desc after last '_'
+    // select the secondary server, routing by secondary_ID embedded in Desc after last '_'
     auto server = _router->GetNextServer();
     bool routed = false;
 
     if (Desc != "NONE") {
-      std::string route_ID = Desc.substr(Desc.find_last_of("_") + 1);
+      double scan_start = std::chrono::duration<double>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                  ).count();
+
+      std::string secondary_ID = Desc.substr(Desc.find_last_of("_") + 1);
       size_t attempts = 0;
-      while (route_ID != _router->GetRouteIDFromSession()) {
-        if (_router->GetRouteIDFromSession() == "NONE") {
+      while (secondary_ID != _router->GetSecondaryIDFromSession()) {
+        if (_router->GetSecondaryIDFromSession() == "NONE") {
           break; // fallback: use a non-dedicated secondary
         }
         server = _router->GetNextServer();
         if (++attempts > 64) break; // safety limit
       }
-      if (route_ID == _router->GetRouteIDFromSession()) {
+      if (secondary_ID == _router->GetSecondaryIDFromSession()) {
         routed = true;
       }
+
+      double scan_end = std::chrono::duration<double>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                  ).count();
+      LogRoutingTimestamp(
+        "TokenRouterScan_start_sensor" + std::to_string(sensor_id),
+        scan_start,
+        static_cast<int>(sensor_id));
+      LogRoutingTimestamp(
+        "TokenRouterScan_end_sensor" + std::to_string(sensor_id) + "_attempts" + std::to_string(attempts),
+        scan_end,
+        static_cast<int>(sensor_id));
     }
 
-    // When a specific server was matched by route ID, send directly to it via
+    // When a specific server was matched by secondary ID, send directly to it via
     // WriteToOne so the _next cursor (advanced by the route matching loop) does
     // not cause GET_TOKEN to land on the wrong secondary.
     double now = std::chrono::duration<double>(

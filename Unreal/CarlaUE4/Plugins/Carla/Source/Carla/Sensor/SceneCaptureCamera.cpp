@@ -78,7 +78,7 @@ void ASceneCaptureCamera::PostPhysTick(UWorld *World, ELevelTick TickType, float
     "_rolename=" +  TCHAR_TO_UTF8(*RoleName);
 
   TimestampLogger::GetInstance().Log(
-    std::string(TCHAR_TO_UTF8(*RoleName)),
+    std::string(TCHAR_TO_UTF8(*RoleName)) + "_start",
     now,
     frame
     );

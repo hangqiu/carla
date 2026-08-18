@@ -27,6 +27,9 @@
 #include "CarlaServerResponse.h"
 #include "Carla/Util/BoundingBoxCalculator.h"
 #include "Misc/FileHelper.h"
+#include "Carla/Sensor/TimestampLogger.h"
+
+#include <chrono>
 
 #include <compiler/disable-ue4-macros.h>
 #include <carla/Functional.h>
@@ -95,14 +98,14 @@ class FCarlaServer::FPimpl
 {
 public:
 
-  FPimpl(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort, std::string RouteID)
+  FPimpl(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort, std::string SecondaryID)
     : Server(RPCPort),
       StreamingServer(StreamingPort),
       BroadcastStream(StreamingServer.MakeStream())
   {
     // we need to create shared_ptr from the router for some handlers to live
-    SecondaryServer = std::make_shared<carla::multigpu::Router>(SecondaryPort, RouteID);
-    SecondaryServer->SetCallbacks(RouteID);
+    SecondaryServer = std::make_shared<carla::multigpu::Router>(SecondaryPort, SecondaryID);
+    SecondaryServer->SetCallbacks(SecondaryID);
     BindActions();
   }
 
@@ -807,6 +810,18 @@ void FCarlaServer::FPimpl::BindActions()
   BIND_SYNC(get_sensor_token) << [this](carla::streaming::detail::stream_id_type sensor_id) ->
                                  R<carla::streaming::Token>
   {
+    // Marks when the game thread actually started executing this RPC
+    // (as opposed to when the client issued it) -- captures queuing delay
+    // from get_sensor_token being serialized on the single game thread.
+    double GetTokenStartTime = std::chrono::duration<double>(
+          std::chrono::system_clock::now().time_since_epoch()
+      ).count();
+    TimestampLogger::GetInstance().Log(
+      "GetSensorToken_start_sensor" + std::to_string(sensor_id),
+      GetTokenStartTime,
+      static_cast<int>(sensor_id)
+      );
+
     REQUIRE_CARLA_EPISODE();
     bool ForceInPrimary = false;
 
@@ -829,13 +844,31 @@ void FCarlaServer::FPimpl::BindActions()
       // multi-gpu: route sensor to the secondary colocated with the client
       std::string RoleName = Episode->GetRoleNameFromStream(sensor_id);
       UE_LOG(LogCarla, Log, TEXT("Sensor %d '%s' role '%s' created in secondary server"), sensor_id, *Desc, *FString(RoleName.c_str()));
-      return SecondaryServer->GetCommander().GetToken(sensor_id, RoleName);
+      auto Token = SecondaryServer->GetCommander().GetToken(sensor_id, RoleName);
+      double GetTokenEndTime = std::chrono::duration<double>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count();
+      TimestampLogger::GetInstance().Log(
+        "GetSensorToken_end_sensor" + std::to_string(sensor_id),
+        GetTokenEndTime,
+        static_cast<int>(sensor_id)
+        );
+      return Token;
     }
     else
     {
       // single-gpu
       UE_LOG(LogCarla, Log, TEXT("Sensor %d '%s' created in primary server"), sensor_id, *Desc);
-      return StreamingServer.GetToken(sensor_id);
+      auto Token = StreamingServer.GetToken(sensor_id);
+      double GetTokenEndTime = std::chrono::duration<double>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count();
+      TimestampLogger::GetInstance().Log(
+        "GetSensorToken_end_sensor" + std::to_string(sensor_id),
+        GetTokenEndTime,
+        static_cast<int>(sensor_id)
+        );
+      return Token;
     }
   };
 
@@ -2622,9 +2655,9 @@ FCarlaServer::~FCarlaServer() {
   Stop();
 }
 
-FDataMultiStream FCarlaServer::Start(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort, std::string RouteID)
+FDataMultiStream FCarlaServer::Start(uint16_t RPCPort, uint16_t StreamingPort, uint16_t SecondaryPort, std::string SecondaryID)
 {
-  Pimpl = MakeUnique<FPimpl>(RPCPort, StreamingPort, SecondaryPort, RouteID);
+  Pimpl = MakeUnique<FPimpl>(RPCPort, StreamingPort, SecondaryPort, SecondaryID);
   StreamingPort = Pimpl->StreamingServer.GetLocalEndpoint().port();
   SecondaryPort = Pimpl->SecondaryServer->GetLocalEndpoint().port();
 

@@ -24,6 +24,9 @@
 #include <carla/sensor/SensorRegistry.h>
 #include <compiler/enable-ue4-macros.h>
 
+#include <chrono>
+#include "TimestampLogger.h"
+
 // =============================================================================
 // -- FPixelReader -------------------------------------------------------------
 // =============================================================================
@@ -213,6 +216,25 @@ void FPixelReader::SendPixelsInRenderThread(TSensor &Sensor, bool use16BitFormat
                   });
                 }
                 #endif
+
+                // timestamp closest to the actual network send, after GPU
+                // readback and serialization are done
+                double SendTime = std::chrono::duration<double>(
+                      std::chrono::system_clock::now().time_since_epoch()
+                  ).count();
+
+                std::string RoleNameStr = "unknown";
+                auto RoleNameAttr = Sensor.GetAttribute("role_name");
+                if (RoleNameAttr.has_value())
+                {
+                  RoleNameStr = TCHAR_TO_UTF8(*RoleNameAttr->Value);
+                }
+
+                TimestampLogger::GetInstance().Log(
+                  RoleNameStr + "_send",
+                  SendTime,
+                  Frame
+                  );
 
                 // network
                 SCOPE_CYCLE_COUNTER(STAT_CarlaSensorStreamSend);

@@ -91,7 +91,7 @@ void ARayCastLidar::PostPhysTick(UWorld *World, ELevelTick TickType, float Delta
       "_rolename=" + role_utf8;
 
   TimestampLogger::GetInstance().Log(
-    std::string(TCHAR_TO_UTF8(*RoleName)),
+    std::string(TCHAR_TO_UTF8(*RoleName)) + "_start",
     now,
     frame
     );
@@ -104,6 +104,18 @@ void ARayCastLidar::PostPhysTick(UWorld *World, ELevelTick TickType, float Delta
   {
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("Send Stream");
     DataStream.SerializeAndSend(*this, LidarData, DataStream.PopBufferFromPool());
+
+    // timestamp closest to the actual network send, after point-cloud
+    // serialization has completed
+    double SendTime = std::chrono::duration<double>(
+          std::chrono::system_clock::now().time_since_epoch()
+      ).count();
+
+    TimestampLogger::GetInstance().Log(
+      std::string(TCHAR_TO_UTF8(*RoleName)) + "_send",
+      SendTime,
+      frame
+      );
   }
   // ROS2
   #if defined(WITH_ROS2)

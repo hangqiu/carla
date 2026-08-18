@@ -66,4 +66,6 @@ private:
   float LatitudeBias;
   float LongitudeBias;
   float AltitudeBias;
+
+  FString RoleName;
 };
