@@ -78,7 +78,7 @@ private:
 
 public:
 
-  std::string RouteID = "";
+  std::string SecondaryID = "";
   
   /// World port to listen for client connections.
   UPROPERTY(Category = "CARLA Server", VisibleAnywhere, meta = (EditCondition = bUseNetworking))

@@ -84,9 +84,9 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
     const auto PrimaryIP     = Settings.PrimaryIP;
     const auto PrimaryPort   = Settings.PrimaryPort;
 
-    const auto RouteID = Settings.RouteID;
+    const auto SecondaryID = Settings.SecondaryID;
 
-    auto BroadcastStream     = Server.Start(Settings.RPCPort, StreamingPort, SecondaryPort, RouteID);
+    auto BroadcastStream     = Server.Start(Settings.RPCPort, StreamingPort, SecondaryPort, SecondaryID);
     Server.AsyncRun(FCarlaEngine_GetNumberOfThreadsForRPCServer());
 
     WorldObserver.SetStream(BroadcastStream);
@@ -203,9 +203,9 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
         }
       };
 
-      const char *RouteIdEnv = std::getenv("SECONDARY_ROUTE_ID");
-      std::string SecondaryRouteID = RouteIdEnv ? std::string(RouteIdEnv) : "";
-      Secondary = std::make_shared<carla::multigpu::Secondary>(PrimaryIP, PrimaryPort, CommandExecutor, SecondaryRouteID);
+      const char *SecondaryIdEnv = std::getenv("SECONDARY_ID");
+      std::string SecondaryID = SecondaryIdEnv ? std::string(SecondaryIdEnv) : "";
+      Secondary = std::make_shared<carla::multigpu::Secondary>(PrimaryIP, PrimaryPort, CommandExecutor, SecondaryID);
       Secondary->Connect();
       // set this server in synchronous mode
       bSynchronousMode = true;

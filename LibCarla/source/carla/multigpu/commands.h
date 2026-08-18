@@ -19,7 +19,7 @@ enum MultiGPUCommand : uint32_t {
   DISABLE_ROS,
   IS_ENABLED_ROS,
   YOU_ALIVE,
-  REGISTER_ROUTE_ID
+  REGISTER_SECONDARY_ID
 };
 
 struct CommandHeader {

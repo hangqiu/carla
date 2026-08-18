@@ -32,8 +32,8 @@ namespace multigpu {
   Secondary::Secondary(
     boost::asio::ip::tcp::endpoint ep,
     SecondaryCommands::callback_type callback,
-    std::string route_id) :
-      _route_ID(route_id),
+    std::string secondary_id) :
+      _secondary_ID(secondary_id),
       _pool(),
       _socket(_pool.io_context()),
       _endpoint(ep),
@@ -49,8 +49,8 @@ namespace multigpu {
     std::string ip,
     uint16_t port,
     SecondaryCommands::callback_type callback,
-    std::string route_id) :
-      _route_ID(route_id),
+    std::string secondary_id) :
+      _secondary_ID(secondary_id),
       _pool(),
       _socket(_pool.io_context()),
       _strand(_pool.io_context()),
@@ -104,17 +104,17 @@ namespace multigpu {
 
         log_info("secondary server: connected to ", self->_endpoint);
 
-        // Announce our route ID to the primary so it can route sensors to us.
-        if (!self->_route_ID.empty()) {
+        // Announce our secondary ID to the primary so it can route sensors to us.
+        if (!self->_secondary_ID.empty()) {
           CommandHeader hdr;
-          hdr.id = MultiGPUCommand::REGISTER_ROUTE_ID;
-          hdr.size = static_cast<uint32_t>(self->_route_ID.size());
-          std::vector<uint8_t> msg(sizeof(CommandHeader) + self->_route_ID.size());
+          hdr.id = MultiGPUCommand::REGISTER_SECONDARY_ID;
+          hdr.size = static_cast<uint32_t>(self->_secondary_ID.size());
+          std::vector<uint8_t> msg(sizeof(CommandHeader) + self->_secondary_ID.size());
           std::memcpy(msg.data(), &hdr, sizeof(CommandHeader));
-          std::memcpy(msg.data() + sizeof(CommandHeader), self->_route_ID.data(), self->_route_ID.size());
+          std::memcpy(msg.data() + sizeof(CommandHeader), self->_secondary_ID.data(), self->_secondary_ID.size());
           carla::Buffer buf(msg.data(), msg.size());
           self->Write(std::move(buf));
-          log_info("secondary server: registered route ID '", self->_route_ID, "'");
+          log_info("secondary server: registered secondary ID '", self->_secondary_ID, "'");
         }
 
         self->ReadData();
@@ -154,7 +154,7 @@ namespace multigpu {
   }
 
   void Secondary::Write(std::shared_ptr<const carla::streaming::detail::tcp::Message> message) {
-    log_error("secondary server: sending message from: ", _route_ID);
+    log_error("secondary server: sending message from: ", _secondary_ID);
     DEBUG_ASSERT(message != nullptr);
     DEBUG_ASSERT(!message->empty());
     std::weak_ptr<Secondary> weak = shared_from_this();
@@ -183,7 +183,7 @@ namespace multigpu {
   }
 
   void Secondary::Write(Buffer buffer) {
-    log_error("secondary server: sending buffer from: ", _route_ID);
+    log_error("secondary server: sending buffer from: ", _secondary_ID);
     auto view_data = carla::BufferView::CreateFrom(std::move(buffer));
     auto message = Secondary::MakeMessage(view_data);
 
@@ -215,7 +215,7 @@ namespace multigpu {
   }
 
   void Secondary::Write(std::string text) {
-    log_error("secondary server: sending text from: ", _route_ID, ": ", text);
+    log_error("secondary server: sending text from: ", _secondary_ID, ": ", text);
     std::weak_ptr<Secondary> weak = shared_from_this();
     boost::asio::post(_strand, [=]() {
       auto self = weak.lock();
@@ -250,7 +250,7 @@ namespace multigpu {
   }
 
   void Secondary::ReadData() {
-    log_error("secondary server: starting to read data, working for route ", _route_ID);
+    log_error("secondary server: starting to read data, working for route ", _secondary_ID);
     double now = std::chrono::duration<double>(
                   std::chrono::system_clock::now().time_since_epoch()
                 ).count();

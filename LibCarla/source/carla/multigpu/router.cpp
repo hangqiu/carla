@@ -36,20 +36,20 @@ Router::Router(uint16_t port) :
 
   _endpoint = boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string("0.0.0.0"), port);
   _listener = std::make_shared<carla::multigpu::Listener>(_pool.io_context(), _endpoint);
-  _route_ID = "NONE";
+  _secondary_ID = "NONE";
   _port = port;
 }
 
-Router::Router(uint16_t port, std::string route_ID) :
+Router::Router(uint16_t port, std::string secondary_ID) :
   _next(0) {
 
   _endpoint = boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string("0.0.0.0"), port);
   _listener = std::make_shared<carla::multigpu::Listener>(_pool.io_context(), _endpoint);
-  _route_ID = route_ID;
+  _secondary_ID = secondary_ID;
   _port = port;
 }
 
-void Router::SetCallbacks(std::string route_ID) {
+void Router::SetCallbacks(std::string secondary_ID) {
   double now = std::chrono::duration<double>(
                 std::chrono::system_clock::now().time_since_epoch()
               ).count();
@@ -63,13 +63,13 @@ void Router::SetCallbacks(std::string route_ID) {
   carla::multigpu::Listener::callback_function_type on_open = [=](std::shared_ptr<carla::multigpu::Primary> session) {
     auto self = weak.lock();
     if (!self) return;
-    self->ConnectSession(session, route_ID);
+    self->ConnectSession(session, secondary_ID);
   };
 
   carla::multigpu::Listener::callback_function_type on_close = [=](std::shared_ptr<carla::multigpu::Primary> session) {
     auto self = weak.lock();
     if (!self) return;
-    self->DisconnectSession(session, route_ID);
+    self->DisconnectSession(session, secondary_ID);
   };
 
   carla::multigpu::Listener::callback_function_type_response on_response =
@@ -85,12 +85,12 @@ void Router::SetCallbacks(std::string route_ID) {
       } else if (buffer.size() >= sizeof(CommandHeader)) {
         CommandHeader hdr;
         std::memcpy(&hdr, buffer.data(), sizeof(CommandHeader));
-        if (hdr.id == MultiGPUCommand::REGISTER_ROUTE_ID && hdr.size > 0 &&
+        if (hdr.id == MultiGPUCommand::REGISTER_SECONDARY_ID && hdr.size > 0 &&
             buffer.size() >= sizeof(CommandHeader) + hdr.size) {
-          std::string route_id(
+          std::string secondary_id(
               reinterpret_cast<const char *>(buffer.data() + sizeof(CommandHeader)),
               hdr.size);
-          self->UpdateSessionRouteID(session, route_id);
+          self->UpdateSessionSecondaryID(session, secondary_id);
         } else {
           log_info("Got data from secondary (without promise): ", buffer.size());
         }
@@ -116,34 +116,34 @@ boost::asio::ip::tcp::endpoint Router::GetLocalEndpoint() const {
   return _endpoint;
 }
 
-void Router::ConnectSession(std::shared_ptr<Primary> session, std::string route_ID) {
+void Router::ConnectSession(std::shared_ptr<Primary> session, std::string secondary_ID) {
   double now = std::chrono::duration<double>(
                 std::chrono::system_clock::now().time_since_epoch()
               ).count();
   std::string event = "ConnectSession";
-  std::string result = "CHANGE_Router_" + std::to_string(now) + "_" + event + "_" + route_ID;
+  std::string result = "CHANGE_Router_" + std::to_string(now) + "_" + event + "_" + secondary_ID;
   log_error(result);
 
   DEBUG_ASSERT(session != nullptr);
   std::lock_guard<std::mutex> lock(_mutex);
   _sessions.emplace_back(std::move(session));
-  if(route_ID == "") {
-    log_error("route ID is empty string");
-    _connected_route_ids.emplace_back(route_ID);
+  if(secondary_ID == "") {
+    log_error("secondary ID is empty string");
+    _connected_secondary_ids.emplace_back(secondary_ID);
   }
   else {
-    log_error("Added route ID: ", route_ID);
-    _connected_route_ids.emplace_back(route_ID);
+    log_error("Added secondary ID: ", secondary_ID);
+    _connected_secondary_ids.emplace_back(secondary_ID);
   }
   log_info("Connected secondary servers:", _sessions.size());
   log_error("Connected secondary servers:", _sessions.size());
-  log_error("Added route ID: ", route_ID);
+  log_error("Added secondary ID: ", secondary_ID);
   // run external callback for new connections
   if (_callback)
     _callback();
 }
 
-void Router::DisconnectSession(std::shared_ptr<Primary> session, std::string route_ID) {
+void Router::DisconnectSession(std::shared_ptr<Primary> session, std::string secondary_ID) {
   DEBUG_ASSERT(session != nullptr);
   std::lock_guard<std::mutex> lock(_mutex);
   if (_sessions.size() == 0) return;
@@ -151,8 +151,8 @@ void Router::DisconnectSession(std::shared_ptr<Primary> session, std::string rou
   if (it != _sessions.end()) {
     auto idx = std::distance(_sessions.begin(), it);
     _sessions.erase(it);
-    if (idx < static_cast<decltype(idx)>(_connected_route_ids.size())) {
-      _connected_route_ids.erase(_connected_route_ids.begin() + idx);
+    if (idx < static_cast<decltype(idx)>(_connected_secondary_ids.size())) {
+      _connected_secondary_ids.erase(_connected_secondary_ids.begin() + idx);
     }
   }
   log_info("Connected secondary servers:", _sessions.size());
@@ -265,28 +265,28 @@ std::weak_ptr<Primary> Router::GetNextServer() {
   }
 }
 
-std::string Router::GetRouteIDFromSession() {
+std::string Router::GetSecondaryIDFromSession() {
   std::lock_guard<std::mutex> lock(_mutex);
-  if (_connected_route_ids.empty()) return "NONE";
-  size_t idx = (_next > 0) ? (_next - 1) : (_connected_route_ids.size() - 1);
-  if (_connected_route_ids[idx].empty()) return std::to_string(idx);
-  return _connected_route_ids[idx];
+  if (_connected_secondary_ids.empty()) return "NONE";
+  size_t idx = (_next > 0) ? (_next - 1) : (_connected_secondary_ids.size() - 1);
+  if (_connected_secondary_ids[idx].empty()) return std::to_string(idx);
+  return _connected_secondary_ids[idx];
 }
 
-void Router::UpdateSessionRouteID(std::shared_ptr<Primary> session, std::string route_id) {
+void Router::UpdateSessionSecondaryID(std::shared_ptr<Primary> session, std::string secondary_id) {
   double now = std::chrono::duration<double>(
                 std::chrono::system_clock::now().time_since_epoch()
               ).count();
-  std::string event = "update_session_route_id";
+  std::string event = "update_session_secondary_id";
   std::string result = "Router_" + std::to_string(now) + "_" + event;
   log_error(result);
 
   auto it = std::find(_sessions.begin(), _sessions.end(), session);
   if (it != _sessions.end()) {
     size_t idx = static_cast<size_t>(std::distance(_sessions.begin(), it));
-    if (idx < _connected_route_ids.size()) {
-      _connected_route_ids[idx] = route_id;
-      std::cout << "Registered route ID '" << route_id << "' for secondary " << idx << std::endl;
+    if (idx < _connected_secondary_ids.size()) {
+      _connected_secondary_ids[idx] = secondary_id;
+      std::cout << "Registered secondary ID '" << secondary_id << "' for secondary " << idx << std::endl;
     }
   }
 }

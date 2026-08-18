@@ -37,7 +37,7 @@ namespace multigpu {
 
     Router(void);
     explicit Router(uint16_t port);
-    explicit Router(uint16_t port, std::string route_ID);
+    explicit Router(uint16_t port, std::string secondary_ID);
     ~Router();
 
     void Write(MultiGPUCommand id, Buffer &&buffer);
@@ -45,7 +45,7 @@ namespace multigpu {
     std::future<SessionInfo> WriteToOne(std::weak_ptr<Primary> server, MultiGPUCommand id, Buffer &&buffer);
     void Stop();
 
-    void SetCallbacks(std::string route_ID = "NONE");
+    void SetCallbacks(std::string secondary_ID = "NONE");
     void SetNewConnectionCallback(std::function<void(void)>);
 
     void AsyncRun(size_t worker_threads);
@@ -62,18 +62,18 @@ namespace multigpu {
 
     std::weak_ptr<Primary> GetNextServer();
 
-    std::string GetRouteID() const {
-      return _route_ID;
+    std::string GetSecondaryID() const {
+      return _secondary_ID;
     }
 
-    std::string GetRouteIDFromSession();
+    std::string GetSecondaryIDFromSession();
 
   private:
-    void ConnectSession(std::shared_ptr<Primary> session, std::string route_ID);
-    void DisconnectSession(std::shared_ptr<Primary> session, std::string route_ID);
+    void ConnectSession(std::shared_ptr<Primary> session, std::string secondary_ID);
+    void DisconnectSession(std::shared_ptr<Primary> session, std::string secondary_ID);
     void ClearSessions();
     // Called with _mutex already held.
-    void UpdateSessionRouteID(std::shared_ptr<Primary> session, std::string route_id);
+    void UpdateSessionSecondaryID(std::shared_ptr<Primary> session, std::string secondary_id);
 
     // mutex and thread pool must be at the beginning to be destroyed last
     std::mutex                              _mutex;
@@ -86,9 +86,9 @@ namespace multigpu {
     PrimaryCommands                         _commander;
     std::function<void(void)>               _callback;
     uint16_t                               _port;
-    std::string                            _route_ID;
+    std::string                            _secondary_ID;
 
-    std::vector<std::string>                 _connected_route_ids;
+    std::vector<std::string>                 _connected_secondary_ids;
 
   };
 

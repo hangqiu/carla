@@ -108,7 +108,7 @@ namespace multigpu {
 
     bool _is_writing = false;
 
-    std::string route_id;
+    std::string secondary_id;
 
   };
 
