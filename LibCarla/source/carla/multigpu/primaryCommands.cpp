@@ -17,6 +17,8 @@
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
+#include <mutex>
+#include <string>
 #include <unistd.h>   // gethostname
 
 namespace carla {
@@ -28,33 +30,62 @@ namespace {
   // for per-frame sensor timestamps, so router/token-fetch events land in the
   // same file without this LibCarla-core translation unit (also compiled into
   // the client library) depending on that UE4-plugin-only header.
+  // Once-only setup for the routing log: path resolution, directory creation,
+  // hostname lookup and opening the stream. Deliberately NOT done per row.
+  
+  struct RoutingLogSink {
+    std::string hostname;
+    std::ofstream file;
+    std::mutex mutex;
+
+    RoutingLogSink() {
+      std::string log_path = "/tmp/carla_timestamps.csv";
+      const char *env_path = std::getenv("CARLA_TIMESTAMP_LOG_PATH");
+      if (env_path != nullptr && env_path[0] != '\0') {
+        log_path = std::string(env_path);
+      }
+
+      const std::size_t slash = log_path.find_last_of('/');
+      if (slash != std::string::npos) {
+        const std::string dir = log_path.substr(0, slash);
+        if (!dir.empty()) {
+          const std::string cmd = "mkdir -p " + dir;
+          system(cmd.c_str());
+        }
+      }
+
+      char host[256];
+      if (gethostname(host, sizeof(host)) == 0) {
+        host[sizeof(host) - 1] = '\0';
+        hostname = std::string(host);
+      } else {
+        hostname = "unknown";
+      }
+
+      file.open(log_path, std::ios::out | std::ios::app);
+    }
+  };
+
   void LogRoutingTimestamp(const std::string &event, double timestamp, int frame) {
-    std::string log_path = "/tmp/carla_timestamps.csv";
-    const char *env_path = std::getenv("CARLA_TIMESTAMP_LOG_PATH");
-    if (env_path != nullptr) {
-      log_path = std::string(env_path);
-    }
+    // C++11 guarantees thread-safe initialisation of function-local statics.
+    static RoutingLogSink sink;
 
-    std::string dir = log_path.substr(0, log_path.find_last_of('/'));
-    if (!dir.empty()) {
-      std::string cmd = "mkdir -p " + dir;
-      system(cmd.c_str());
-    }
+    // The original had no lock at all; several RPC threads can reach this.
+    std::lock_guard<std::mutex> lock(sink.mutex);
 
-    std::ofstream file(log_path, std::ios::app);
-    if (!file.is_open()) {
+    if (!sink.file.is_open()) {
       return;
     }
 
-    char hostname[256] = "unknown";
-    gethostname(hostname, sizeof(hostname));
+    sink.file << frame << ","
+              << std::fixed << timestamp << ","
+              << event << ","
+              << "server,"
+              << sink.hostname
+              << "\n";
 
-    file << frame << ","
-         << std::fixed << timestamp << ","
-         << event << ","
-         << "server,"
-         << hostname
-         << "\n";
+    // One write syscall, so a killed run still leaves usable rows.
+    sink.file.flush();
   }
 
 } // namespace
