@@ -82,24 +82,11 @@ void ARayCastLidar::PostPhysTick(UWorld *World, ELevelTick TickType, float Delta
 
   auto frame = FCarlaEngine::GetFrameCounter();
   
-  std::string role_utf8 = TCHAR_TO_UTF8(*RoleName);
-
-  std::string result =
-      std::string("Sensor_") +
-      std::to_string(now) +
-      "_frame=" + std::to_string(frame) +
-      "_rolename=" + role_utf8;
-
   TimestampLogger::GetInstance().Log(
     std::string(TCHAR_TO_UTF8(*RoleName)) + "_start",
     now,
     frame
     );
-
-  carla::log_error(result);
-  std::cout << result << std::endl;
-  std::cout.flush();
-  std::cerr << result << std::endl;
 
   {
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("Send Stream");

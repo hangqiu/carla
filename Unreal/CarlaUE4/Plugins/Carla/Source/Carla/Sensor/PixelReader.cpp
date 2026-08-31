@@ -12,6 +12,8 @@
 #include "HighResScreenshot.h"
 #include "Runtime/ImageWriteQueue/Public/ImageWriteQueue.h"
 
+#include <chrono>
+
 // =============================================================================
 // -- FPixelReader -------------------------------------------------------------
 // =============================================================================
@@ -20,7 +22,9 @@ void FPixelReader::WritePixelsToBuffer(
     const UTextureRenderTarget2D &RenderTarget,
     uint32 Offset,
     FRHICommandListImmediate &RHICmdList,
-    FPixelReader::Payload FuncForSending)
+    FPixelReader::Payload FuncForSending,
+    const std::string &RoleName,
+    int Frame)
 {
   TRACE_CPUPROFILER_EVENT_SCOPE_STR("WritePixelsToBuffer");
   check(IsInRenderingThread());
@@ -44,7 +48,19 @@ void FPixelReader::WritePixelsToBuffer(
   }
 
   // workaround to force RHI with Vulkan to refresh the fences state in the middle of frame
+  //
+  // DIAGNOSTIC: this block drains the GPU pipeline once per camera per frame
+  // (GetRenderQueryResult with bWait=true blocks the render thread until the
+  // GPU catches up). Bracketed with timestamps to test whether this, rather
+  // than the timestamp logger, is the latency per-sensor quantum seen in the
+  // frame traces. Rows are prefixed "GpuSync_" so they are trivially filtered
+  // out of the normal per-sensor _start/_send analysis.
   {
+    const double GpuSyncBegin = std::chrono::duration<double>(
+          std::chrono::system_clock::now().time_since_epoch()
+      ).count();
+    TimestampLogger::GetInstance().Log("GpuSync_" + RoleName + "_begin", GpuSyncBegin, Frame);
+
     FRenderQueryRHIRef Query = RHICreateRenderQuery(RQT_AbsoluteTime);
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("create query");
     RHICmdList.EndRenderQuery(Query);
@@ -53,6 +69,11 @@ void FPixelReader::WritePixelsToBuffer(
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("query result");
     uint64 OldAbsTime = 0;
     RHICmdList.GetRenderQueryResult(Query, OldAbsTime, true);
+
+    const double GpuSyncEnd = std::chrono::duration<double>(
+          std::chrono::system_clock::now().time_since_epoch()
+      ).count();
+    TimestampLogger::GetInstance().Log("GpuSync_" + RoleName + "_finish", GpuSyncEnd, Frame);
   }
 
   AsyncTask(ENamedThreads::HighTaskPriority, [=, Readback=std::move(BackBufferReadback)]() mutable {

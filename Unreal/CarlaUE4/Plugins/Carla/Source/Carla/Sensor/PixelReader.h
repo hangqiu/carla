@@ -85,7 +85,9 @@ public:
       const UTextureRenderTarget2D &RenderTarget,
       uint32 Offset,
       FRHICommandListImmediate &InRHICmdList,
-      FPixelReader::Payload FuncForSending);
+      FPixelReader::Payload FuncForSending,
+      const std::string &RoleName = "unknown",
+      int Frame = 0);
 
 };
 
@@ -244,11 +246,22 @@ void FPixelReader::SendPixelsInRenderThread(TSensor &Sensor, bool use16BitFormat
             }
           };
 
+          std::string GpuSyncRoleName = "unknown";
+          {
+            auto RoleNameAttr = Sensor.GetAttribute("role_name");
+            if (RoleNameAttr.has_value())
+            {
+              GpuSyncRoleName = TCHAR_TO_UTF8(*RoleNameAttr->Value);
+            }
+          }
+
           WritePixelsToBuffer(
               *Sensor.CaptureRenderTarget,
               carla::sensor::SensorRegistry::get<TSensor *>::type::header_offset,
               InRHICmdList,
-              std::move(FuncForSending));
+              std::move(FuncForSending),
+              GpuSyncRoleName,
+              static_cast<int>(FCarlaEngine::GetFrameCounter()));
         }
       }
     );

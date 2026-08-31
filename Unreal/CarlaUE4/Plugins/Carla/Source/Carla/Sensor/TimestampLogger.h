@@ -15,7 +15,8 @@ private:
     TimestampLogger(const TimestampLogger&) = delete;
     TimestampLogger& operator=(const TimestampLogger&) = delete;
 
+    std::string log_path_;
+    std::string hostname_;
     std::ofstream log_file_;
     std::mutex log_mutex_;
-    bool header_written_;
 };

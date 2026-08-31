@@ -3,53 +3,57 @@
 #include <chrono>
 #include <iomanip>
 #include <cstdlib>
-#include <filesystem>
 #include <iostream>
 #include <mutex>
 #include <unistd.h>   // gethostname
 
-TimestampLogger::TimestampLogger() : header_written_(false) {
+
+TimestampLogger::TimestampLogger() {
 
     // ----------------------------
-    // 1. Fixed log path
+    // 1. Resolve log path (env override, else default)
     // ----------------------------
-    std::string log_path = "/tmp/carla_timestamps.csv";
+    log_path_ = "/tmp/carla_timestamps.csv";
 
-    // ----------------------------
-    // 2. Ensure directory exists (NO std::filesystem)
-    // ----------------------------
-    std::string dir = "/tmp";
-    std::string cmd = "mkdir -p " + dir;
-    system(cmd.c_str());
-
-    // ----------------------------
-    // 3. Open file
-    // ----------------------------
-    log_file_.open(log_path, std::ios::out | std::ios::app);
-
-    if (!log_file_.is_open()) {
-        std::cerr << "[TimestampLogger] Failed to open log file: "
-                  << log_path << std::endl;
-        return;
+    const char* env_path = std::getenv("CARLA_TIMESTAMP_LOG_PATH");
+    if (env_path != nullptr && env_path[0] != '\0') {
+        log_path_ = std::string(env_path);
     }
 
     // ----------------------------
-    // 4. Write header only if file is empty
+    // 2. Ensure directory exists (once, NOT per line)
     // ----------------------------
-    log_file_.seekp(0, std::ios::end);
-    if (log_file_.tellp() <= 1) {
-        log_file_ << "Frame,Timestamp,Event,Agent type,Host\n";
+    const std::size_t slash = log_path_.find_last_of('/');
+    if (slash != std::string::npos) {
+        const std::string dir = log_path_.substr(0, slash);
+        if (!dir.empty()) {
+            const std::string cmd = "mkdir -p " + dir;
+            system(cmd.c_str());
+        }
     }
 
-    header_written_ = true;
-
     // ----------------------------
-    // 5. Log startup marker
+    // 3. Cache hostname (once, NOT per line)
     // ----------------------------
     char hostname[256];
     if (gethostname(hostname, sizeof(hostname)) == 0) {
-        log_file_ << "0,0,LoggerStart,server," << hostname << "\n";
+        hostname[sizeof(hostname) - 1] = '\0';
+        hostname_ = std::string(hostname);
+    } else {
+        hostname_ = "unknown";
     }
+
+    // ----------------------------
+    // 4. Open file once and keep it open
+    // ----------------------------
+    log_file_.open(log_path_, std::ios::out | std::ios::app);
+
+    if (!log_file_.is_open()) {
+        std::cerr << "[TimestampLogger] Failed to open log file: "
+                  << log_path_ << std::endl;
+        return;
+    }
+
 }
 
 TimestampLogger::~TimestampLogger() {
@@ -70,41 +74,19 @@ void TimestampLogger::Log(
 
     std::lock_guard<std::mutex> lock(log_mutex_);
 
-    std::string log_path = "/tmp/carla_timestamps.csv";
-
-    const char* env_path = std::getenv("CARLA_TIMESTAMP_LOG_PATH");
-    if (env_path != nullptr) {
-        log_path = std::string(env_path);
-    }
-
-    // Ensure directory exists
-    std::string dir = log_path.substr(0, log_path.find_last_of('/'));
-
-    if (!dir.empty()) {
-        std::string cmd = "mkdir -p " + dir;
-        system(cmd.c_str());
-    }
-
-    // Open file fresh every write
-    std::ofstream file(log_path, std::ios::app);
-
-    if (!file.is_open()) {
-        std::cerr << "[TimestampLogger] Failed to open: "
-                  << log_path << std::endl;
+    if (!log_file_.is_open()) {
         return;
     }
 
-    // Hostname
-    char hostname[256] = "unknown";
-    gethostname(hostname, sizeof(hostname));
-
     // Write line
-    file << frame << ","
-         << std::fixed << timestamp << ","
-         << event << ","
-         << "server,"
-         << hostname
-         << "\n";
+    log_file_ << frame << ","
+              << std::fixed << timestamp << ","
+              << event << ","
+              << "server,"
+              << hostname_
+              << "\n";
 
-    file.close();
+    // Flushed per line so a crashed run still yields usable data. This is a
+    // single write syscall (~microseconds).
+    log_file_.flush();
 }

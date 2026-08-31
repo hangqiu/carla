@@ -78,22 +78,11 @@ void AGnssSensor::PostPhysTick(UWorld *World, ELevelTick TickType, float DeltaSe
 
   auto frame = FCarlaEngine::GetFrameCounter();
 
-  std::string result =
-    "Sensor_" + std::to_string(now) +
-    "_frame=" + std::to_string(frame) +
-    "_rolename=" + TCHAR_TO_UTF8(*RoleName);
-
   TimestampLogger::GetInstance().Log(
     std::string(TCHAR_TO_UTF8(*RoleName)) + "_start",
     now,
     frame
     );
-
-  carla::log_error(result);
-
-  std::cout << result << std::endl;
-  std::cout.flush();
-  std::cerr << result << std::endl;
 
   // ROS2
   #if defined(WITH_ROS2)
