@@ -19,7 +19,8 @@ enum MultiGPUCommand : uint32_t {
   DISABLE_ROS,
   IS_ENABLED_ROS,
   YOU_ALIVE,
-  REGISTER_SECONDARY_ID
+  REGISTER_SECONDARY_ID,
+  SET_SYNCHRONOUS_MODE
 };
 
 struct CommandHeader {

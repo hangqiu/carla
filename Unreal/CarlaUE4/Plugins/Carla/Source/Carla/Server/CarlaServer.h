@@ -48,6 +48,11 @@ public:
 
   carla::streaming::Server &GetStreamingServer();
 
+  /// Last synchronous mode applied to the streaming server by
+  /// set_episode_settings, so it can be replayed to a secondary that connects
+  /// afterwards.
+  bool IsStreamingSynchronousMode() const;
+
 private:
 
   class FPimpl;

@@ -137,6 +137,19 @@ void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
             Server.Tick();
             break;
           }
+          case carla::multigpu::MultiGPUCommand::SET_SYNCHRONOUS_MODE:
+          {
+            // Every sensor of a non-colocated agent renders here, so this
+            // streaming server decides whether a payload arriving while a
+            // previous one is still being written is queued or silently
+            // discarded. It defaults to discarding; only the primary knows
+            // whether the episode is actually synchronous, so take the value
+            // from it instead of assuming.
+            const bool bSyncMode = *(reinterpret_cast<bool *>(Data.data()));
+            Server.GetStreamingServer().SetSynchronousMode(bSyncMode);
+            carla::log_info("streaming server synchronous mode set to ", bSyncMode);
+            break;
+          }
           case carla::multigpu::MultiGPUCommand::LOAD_MAP:
           {
             FString FinalPath((char *) Data.data());
@@ -344,6 +357,13 @@ void FCarlaEngine::OnPostTick(UWorld *World, ELevelTick TickType, float DeltaSec
     if (bIsPrimaryServer)
     {
       if (SecondaryServer->HasClientsConnected()) {
+        if (bNewConnection)
+        {
+          // This secondary was not connected when set_episode_settings ran, so
+          // replay the streaming server's current mode to it.
+          SecondaryServer->GetCommander().SendSynchronousMode(
+              Server.IsStreamingSynchronousMode());
+        }
         GetCurrentEpisode()->GetFrameData().GetFrameData(GetCurrentEpisode(), true, bNewConnection);
         bNewConnection = false;
         std::ostringstream OutStream;

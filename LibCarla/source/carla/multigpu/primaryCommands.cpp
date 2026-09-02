@@ -131,6 +131,13 @@ void PrimaryCommands::SendLoadMap(std::string map) {
   _router->Write(MultiGPUCommand::LOAD_MAP, std::move(buf));
 }
 
+// broadcast to all secondary servers the streaming server's synchronous mode
+void PrimaryCommands::SendSynchronousMode(bool sync) {
+  log_info("sending synchronous mode to secondaries:", sync);
+  carla::Buffer buf(reinterpret_cast<unsigned char *>(&sync), (size_t) sizeof(bool));
+  _router->Write(MultiGPUCommand::SET_SYNCHRONOUS_MODE, std::move(buf));
+}
+
 // send to who the router wants the request for a token
 token_type PrimaryCommands::SendGetToken(stream_id sensor_id, std::weak_ptr<Primary> server) {
   double now = std::chrono::duration<double>(

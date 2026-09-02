@@ -128,6 +128,10 @@ public:
 
   std::atomic_size_t TickCuesReceived { 0u };
 
+  /// Mirrors the streaming server's synchronous mode, which has no getter of
+  /// its own. Secondaries are told this value, never a hardcoded one.
+  std::atomic_bool StreamingSyncMode { false };
+
 private:
 
   void BindActions();
@@ -545,6 +549,16 @@ void FCarlaServer::FPimpl::BindActions()
     REQUIRE_CARLA_EPISODE();
     Episode->ApplySettings(settings);
     StreamingServer.SetSynchronousMode(settings.synchronous_mode);
+
+    // The sensors of a non-colocated agent render on a secondary, so its
+    // streaming server - not this one - decides whether a payload that collides
+    // with an in-flight write is queued or discarded. Give it the same setting
+    // rather than letting it stay on the asynchronous default.
+    StreamingSyncMode = settings.synchronous_mode;
+    if (SecondaryServer->HasClientsConnected())
+    {
+      SecondaryServer->GetCommander().SendSynchronousMode(settings.synchronous_mode);
+    }
 
     ACarlaGameModeBase* GameMode = UCarlaStatics::GetGameMode(Episode->GetWorld());
     if (!GameMode)
@@ -2759,4 +2773,10 @@ std::shared_ptr<carla::multigpu::Router> FCarlaServer::GetSecondaryServer()
 carla::streaming::Server &FCarlaServer::GetStreamingServer()
 {
   return Pimpl->StreamingServer;
+}
+
+bool FCarlaServer::IsStreamingSynchronousMode() const
+{
+  check(Pimpl != nullptr);
+  return Pimpl->StreamingSyncMode;
 }
