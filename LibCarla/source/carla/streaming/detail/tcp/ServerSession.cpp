@@ -16,7 +16,6 @@
 #include <boost/asio/post.hpp>
 
 #include <atomic>
-#include <thread>
 
 namespace carla {
 namespace streaming {
@@ -83,39 +82,71 @@ namespace tcp {
       if (!_socket.is_open()) {
         return;
       }
-      if (_is_writing) {
+
+      // A message that arrives while a write is in flight waits in the queue
+      // instead of occupying this worker. The completion handler drains it, so
+      // no io_context worker is ever held for the duration of a write and the
+      // pool cannot be starved of the very threads that would release it.
+      //
+      // The cap is what distinguishes the two modes. Asynchronously the stream
+      // is a live feed with nothing throttling the producer: a stale frame is
+      // worthless and an unbounded queue would delay every frame behind it, so
+      // one in flight and no backlog reproduces the previous discard behaviour.
+      // Synchronously the tick barrier bounds the producer, every payload is
+      // owed to the client, and any backlog is a short startup burst that
+      // drains as soon as the world blocks at the barrier.
+      const std::size_t max_queued = _server.IsSynchronousMode() ? 8u : 1u;
+      if (_write_queue.size() >= max_queued) {
         if (_server.IsSynchronousMode()) {
-          // wait until previous message has been sent
-          while (_is_writing) {
-            std::this_thread::yield();
-          }
+          // Not expected: the producer is barrier-bound. Loud, because losing a
+          // payload here stalls whichever frame the client is waiting on.
+          log_warning(
+              "session", _session_id,
+              ": write queue full (", max_queued, "), message discarded");
         } else {
-          // ignore this message
           log_debug("session", _session_id, ": connection too slow: message discarded");
-          return;
         }
+        return;
       }
-      _is_writing = true;
 
-      auto handle_sent = [this, self, message](const boost::system::error_code &ec, size_t DEBUG_ONLY(bytes)) {
-        _is_writing = false;
-        if (ec) {
-          log_info("session", _session_id, ": error sending data :", ec.message());
-          CloseNow(ec);
-        } else {
-          DEBUG_ONLY(log_debug("session", _session_id, ": successfully sent", bytes, "bytes"));
-          DEBUG_ASSERT_EQ(bytes, sizeof(message_size_type) + message->size());
-        }
-      };
+      _write_queue.push_back(message);
 
-      log_debug("session", _session_id, ": sending message of", message->size(), "bytes");
-
-      _deadline.expires_from_now(_timeout);
-      boost::asio::async_write(
-          _socket,
-          message->GetBufferSequence(),
-          handle_sent);
+      // Only start a write when nothing is in flight; otherwise the completion
+      // handler will pick up what was just queued.
+      if (_write_queue.size() == 1u) {
+        DoWrite();
+      }
     });
+  }
+
+  void ServerSession::DoWrite() {
+    auto self = shared_from_this();
+    // Keep the message alive independently of the queue, which the completion
+    // handler pops before the buffers are done with.
+    auto message = _write_queue.front();
+
+    log_debug("session", _session_id, ": sending message of", message->size(), "bytes");
+
+    _deadline.expires_from_now(_timeout);
+    boost::asio::async_write(
+        _socket,
+        message->GetBufferSequence(),
+        // Bound to the strand so the queue is only ever touched from one place.
+        boost::asio::bind_executor(_strand,
+            [this, self, message](const boost::system::error_code &ec, size_t DEBUG_ONLY(bytes)) {
+              if (ec) {
+                log_info("session", _session_id, ": error sending data :", ec.message());
+                _write_queue.clear();
+                CloseNow(ec);
+                return;
+              }
+              DEBUG_ONLY(log_debug("session", _session_id, ": successfully sent", bytes, "bytes"));
+              DEBUG_ASSERT_EQ(bytes, sizeof(message_size_type) + message->size());
+              _write_queue.pop_front();
+              if (!_write_queue.empty()) {
+                DoWrite();
+              }
+            }));
   }
 
   void ServerSession::Close() {

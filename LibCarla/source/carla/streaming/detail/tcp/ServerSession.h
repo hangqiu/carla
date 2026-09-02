@@ -25,6 +25,7 @@
 #  pragma clang diagnostic pop
 #endif
 
+#include <deque>
 #include <functional>
 #include <memory>
 
@@ -88,6 +89,10 @@ namespace tcp {
 
     void StartTimer();
 
+    /// Issues the write for the message at the front of @a _write_queue.
+    /// @warning Must be called from within the strand.
+    void DoWrite();
+
     void CloseNow(boost::system::error_code ec = boost::system::error_code());
 
     friend class Server;
@@ -108,7 +113,12 @@ namespace tcp {
 
     callback_function_type _on_closed;
 
-    bool _is_writing = false;
+    /// Messages pending on this session; the front element is the one
+    /// currently being written. A message waiting its turn sits here rather
+    /// than in a worker thread, so no io_context worker is ever held for the
+    /// duration of a write.
+    /// @warning Only to be accessed from within the strand.
+    std::deque<std::shared_ptr<const Message>> _write_queue;
   };
 
 } // namespace tcp
